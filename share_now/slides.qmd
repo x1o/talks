@@ -1,0 +1,450 @@
+---
+title: "ShareNow Tariffs Analysis"
+format: revealjs
+editor: visual
+date: 2023-09-29
+---
+
+::: columns
+::: {.column width="50%"}
+![](images/1.jpg){fig-align="center" width="75%"}
+:::
+
+::: {.column width="50%"}
+-   Minutentarif:
+
+    -   0.4€ / min
+
+    -   200 km included
+
+    -   0.99€ "Grundpreis"
+
+-   1 Stunde:
+
+    -   16.99€ prepaid for 1 hour
+
+    -   0.23€ / km
+
+    -   0.99€ "Grundpreis"
+:::
+:::
+
+------------------------------------------------------------------------
+
+::: columns
+::: {.column width="50%"}
+![](2.jpg){fig-align="center" width="75%"}
+:::
+
+::: {.column width="50%"}
+-   Minutentarif:
+
+    -   0.4€ / min
+
+    -   200 km included
+
+    -   0.99€ "Grundpreis"
+
+-   1 Stunde:
+
+    -   16.99€ prepaid for 1 hour
+
+    -   0.23€ / km
+
+    -   0.99€ "Grundpreis"
+
+    -   [0.36€ / min]{style="color:green;"}
+
+    -   [Daily cap 99.99€]{style="color: green;"}
+:::
+:::
+
+------------------------------------------------------------------------
+
+::: columns
+::: {.column width="50%"}
+![](5.jpg){fig-align="center" width="75%"}
+:::
+
+::: {.column .smaller width="50%" style="font-size: 80%"}
+-   Minutentarif:
+    -   0.4€ / min
+    -   200 km included
+    -   [0.39€ / km]{style="color: green;"}
+    -   0.99€ "Grundpreis"
+    -   [Daily cap 99.99€]{style="color: green;"}
+-   1 Stunde:
+    -   16.99€ prepaid for 1 hour
+    -   0.23€ / km
+    -   0.99€ "Grundpreis"
+    -   0.36€ / min
+    -   Daily cap 99.99€
+:::
+:::
+
+------------------------------------------------------------------------
+
+::: columns
+::: {.column width="50%"}
+![](3.jpg){fig-align="center" width="75%"}
+:::
+
+::: {.column .smaller width="50%" style="font-size: 80%"}
+-   Minutentarif:
+    -   0.4€ / min
+    -   200 km included
+    -   0.39€ / km
+    -   0.99€ "Grundpreis"
+    -   Daily cap 99.99€
+-   1 Stunde:
+    -   16.99€ prepaid for 1 hour
+    -   0.23€ / km
+    -   0.99€ "Grundpreis"
+    -   0.36€ / min
+    -   Daily cap 99.99€
+:::
+:::
+
+------------------------------------------------------------------------
+
+::: columns
+::: {.column width="50%"}
+![](4.jpg){fig-align="center" width="75%"}
+:::
+
+::: {.column .smaller width="40%" style="font-size: 80%"}
+-   Minutentarif:
+    -   0.4€ / min
+    -   200 km included
+    -   0.39€ / km
+    -   0.99€ "Grundpreis"
+    -   Daily cap 99.99€
+-   1 Stunde:
+    -   16.99€ prepaid for 1 hour
+    -   0.23€ / km
+    -   0.99€ "Grundpreis"
+    -   0.36€ / min
+    -   Daily cap 99.99€
+:::
+:::
+
+------------------------------------------------------------------------
+
+::: columns
+::: {.column width="30%" style="font-size: 60%"}
+|              |                           |                  |
+|--------------|---------------------------|------------------|
+| **Tariff**   | **Price**                 | **Category**     |
+| Minutentarif | 0.4€ / min                | Excess duration  |
+|              | 200 km included           | Prepaid distance |
+|              | 0.39€ / km                | Excess distance  |
+|              | 0.99€ "Grundpreis"        | GP               |
+|              | Daily cap 99.99€          | Cap              |
+| 1 Stunde     | 16.99€ prepaid for 1 hour | Prepaid duration |
+|              | 0.23€ / km                | Excess distance  |
+|              | 0.99€ "Grundpreis"        | GP               |
+|              | 0.36€ / min               | Excess duration  |
+|              | Daily cap 99.99€          | Cap              |
+:::
+
+::: {.column width="70%" style="font-size: 50%;"}
+$$
+\begin{align*}
+\mathrm{TravelPrice}(t,s) & =\mathrm{GP}+\mathrm{TP}\\
+ & +\min(\mathrm{ExtraDuration}(t)\cdot\mathrm{ExtraMinPrice},\mathrm{DailyCap})\\
+ & +\mathrm{ExtraDist}(s)\cdot\mathrm{ExtraKmPrice}
+\end{align*}
+$$
+:::
+:::
+
+## BMW 1er (2020)
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+tariff_df <- tibble(
+    Name = c('1M', '1H', '2H', '4H', '6H', '9H', '1D', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', '10D', '11D', '12D', '13D', '14D', '15D', '16D', '17D', '18D', '19D', '20D', '21D', '22D', '23D', '24D', '25D', '26D', '27D', '28D', '29D', '30D'),
+    GP = c(rep(0.99, 6), rep(0, 30)),
+    TP = c(0.4, 16.99, 22.99, 35.49, 47.99, 62.99, 69.99, 134.99, 189.99, 239.99, 279.99, 314.99, 349.99, 384.99, 419.99, 454.99, 489.99, 524.99, 599.99, 594.99, 629.99, 659.99, 689.99, 714.99, 744.99, 469.99, 799.99, 829.99, 854.99, 884.99, 909.99, 939.99, 969.99, 994.99, 1024.99, 1049.99),
+    ExtraMinsPrice = c(0.4, rep(0.36, 35)),
+    DailyCap = c(rep(99.99, 6), rep(82.99, 3), rep(61.99, 36-6-3)),
+    PrepaidKm = c(200, rep(0, 35)),
+    ExtraKmPrice = c(0.39, rep(0.23, 35))
+) |> 
+    mutate(
+        pn = str_extract(Name, '[:digit:]+') |> as.numeric(),
+        PrepaidMins = case_match(
+            str_extract(Name, '[:alpha:]'),
+            'M' ~ pn,
+            'H' ~ pn * 60,
+            'D' ~ pn * 60 * 24
+        ),
+        .after = 'TP'
+    ) |> 
+    select(-pn)
+```
+
+::: {style="font-size: 100%"}
+```{r}
+# rmarkdown::paged_table(tariff_df, list(rows.print = 12, cols.print = 8))
+tariff_df
+```
+:::
+
+::: {style="font-size: 80%"}
+$$
+\begin{align*}
+\mathrm{TravelPrice}(t,s) & =\mathrm{GP}+\mathrm{TP}\\
+ & +\min(\mathrm{ExtraDuration}(t)\cdot\mathrm{ExtraMinPrice},\mathrm{DailyCap})\\
+ & +\mathrm{ExtraDist}(s)\cdot\mathrm{ExtraKmPrice}
+\end{align*}
+$$
+:::
+
+------------------------------------------------------------------------
+
+```{r echo=TRUE}
+extra <- function(x, prepaid) {
+    pmax(0, x - prepaid)
+}
+travel_price <- function(t, s, θ, relative = FALSE) {
+    p <- θ$GP + θ$TP + 
+        pmin(extra(t, θ$PrepaidMins) * θ$ExtraMinsPrice, θ$DailyCap) +
+             extra(s, θ$PrepaidKm)   * θ$ExtraKmPrice
+    if (relative) {
+        p <- p / t / s
+    }
+    p
+}
+```
+
+-   $\mathbf{t}$, $\mathbf{s}$: vectors
+
+-   $\boldsymbol{\theta}$: tariff parameter vector
+
+```{r echo=TRUE}
+travel_price(c(90, 120), c(70, 80), tariff_df[2,])
+travel_price(c(90, 120), c(70, 80), tariff_df[2,], relative = TRUE)
+```
+
+## Distance x Duration
+
+```{r}
+make_grid <- function(
+        min_duration = 1, max_duration,
+        min_distance = 1, max_distance, 
+        # km/m
+        min_speed = 1, max_speed
+    ) {
+    crossing(
+        duration = min_duration:max_duration,
+        distance = min_distance:max_distance
+    ) |> 
+    filter(between(distance / duration, min_speed, max_speed))
+}
+td_grid <- make_grid(
+    max_duration = 60 * 24, 
+    max_distance = 1000,
+    min_speed = 30 / 60, max_speed = 100 / 60
+)
+plot_price <- function(k) {
+    params <- tariff_df[k,]
+    td_grid |> 
+        filter(duration > params$PrepaidMins) |>
+        mutate(RTP = travel_price(duration, distance, params)) |> 
+        ggplot(aes(x = duration, y = distance, z = RTP)) +
+        geom_contour_filled(bins = 10) +
+        labs(title = params$Name)
+}
+```
+
+::: panel-tabset
+## 1M
+
+```{r}
+plot_price(1)
+```
+
+## 1H
+
+```{r}
+plot_price(2)
+```
+
+## 2H
+
+```{r}
+plot_price(3)
+```
+
+## 4H
+
+```{r}
+plot_price(4)
+```
+
+## 6H
+
+```{r}
+plot_price(5)
+```
+
+## 9H
+
+```{r}
+plot_price(6)
+```
+:::
+
+## Distance x Duration (per km per min)
+
+```{r}
+plot_rel_price <- function(k) {
+    params <- tariff_df[k,]
+    td_grid |> 
+        filter(duration > params$PrepaidMins) |>
+        mutate(RTP = travel_price(duration, distance, params, relative = TRUE)) |> 
+        ggplot(aes(x = duration, y = distance, z = RTP)) +
+        geom_contour_filled(bins = 10) +
+        labs(title = params$Name)
+}
+```
+
+
+::: panel-tabset
+## 1M
+
+```{r}
+plot_rel_price(1)
+```
+
+## 1H
+
+```{r}
+plot_rel_price(2)
+```
+
+## 2H
+
+```{r}
+plot_rel_price(3)
+```
+
+## 4H
+
+```{r}
+plot_rel_price(4)
+```
+
+## 6H
+
+```{r}
+plot_rel_price(5)
+```
+
+## 9H
+
+```{r}
+plot_rel_price(6)
+```
+:::
+
+## Optimisation Across Tariffs
+
+5 Hours, 200 kilometers
+
+```{r}
+1:4 |> 
+    map_dfr(\(k) {
+        params <- tariff_df[k,]
+        tibble(
+            Name = params$Name,
+            Price = travel_price(5 * 60, 200, params),
+            `Price/Km/Min` = travel_price(5 * 60, 200, params, relative = TRUE)
+        )
+    })
+```
+
+
+## Fixed Duration (5 hours)
+
+```{r}
+target_duration <- 5 * 60
+dist_df <- 
+    1:6 |> 
+    map_dfr(\(k) {
+        params <- tariff_df[k,]
+        tibble(
+            Name = params$Name,
+            Duration = target_duration,
+            Distance = (10 * 5):(100 * 5)
+        ) |> 
+            mutate(
+                Price = travel_price(Duration, Distance, params),
+                `Price/Km/Min` = travel_price(Duration, Distance, params, relative = TRUE)
+            )
+    })
+```
+
+::: panel-tabset
+
+## Absolute
+```{r}
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = Distance, y = `Price`, color = Name)) +
+    labs(title = glue::glue('Target duration: {target_duration / 60} hours'))
+```
+
+## Relative
+```{r}
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = Distance, y = `Price/Km/Min`, color = Name)) +
+    labs(title = glue::glue('Target duration: {target_duration / 60} hours'))
+```
+:::
+
+
+## Fixed Distance (200 Kilometers)
+
+```{r}
+target_distance <- 200
+dist_df <- 
+    1:6 |> 
+    map_dfr(\(k) {
+        params <- tariff_df[k,]
+        tibble(
+            Name = params$Name,
+            Distance = target_distance,
+            Duration = (2*60):(6*60)
+        ) |> 
+            mutate(
+                Price = travel_price(Duration, Distance, params),
+                `Price/Km/Min` = travel_price(Duration, Distance, params, relative = TRUE),
+                DurationH = Duration / 60
+            )
+    })
+```
+
+::: panel-tabset
+
+## Absolute
+```{r}
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = DurationH, y = `Price`, color = Name)) +
+    labs(title = glue::glue('Target distance: {target_distance} km'))
+```
+
+## Relative
+```{r}
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = DurationH, y = `Price/Km/Min`, color = Name)) +
+    labs(title = glue::glue('Target distance: {target_distance} km'))
+```
+:::

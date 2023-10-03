@@ -1,0 +1,294 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+```
+
+# Tariff Data
+
+BMW 1er (2020)
+
+```{r}
+tariff_df <- tibble(
+    Name = c('1M', '1H', '2H', '4H', '6H', '9H', '1D', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', '10D', '11D', '12D', '13D', '14D', '15D', '16D', '17D', '18D', '19D', '20D', '21D', '22D', '23D', '24D', '25D', '26D', '27D', '28D', '29D', '30D'),
+    GP = c(rep(0.99, 6), rep(0, 30)),
+    TP = c(0.4, 16.99, 22.99, 35.49, 47.99, 62.99, 69.99, 134.99, 189.99, 239.99, 279.99, 314.99, 349.99, 384.99, 419.99, 454.99, 489.99, 524.99, 599.99, 594.99, 629.99, 659.99, 689.99, 714.99, 744.99, 469.99, 799.99, 829.99, 854.99, 884.99, 909.99, 939.99, 969.99, 994.99, 1024.99, 1049.99),
+    ExtraMinsPrice = c(0.4, rep(0.36, 35)),
+    DailyCap = c(rep(99.99, 6), rep(82.99, 3), rep(61.99, 36-6-3)),
+    PrepaidKm = c(200, rep(0, 35)),
+    ExtraKmPrice = c(0.39, rep(0.23, 35))
+) |> 
+    mutate(
+        pn = str_extract(Name, '[:digit:]+') |> as.numeric(),
+        PrepaidMins = case_match(
+            str_extract(Name, '[:alpha:]'),
+            'M' ~ pn,
+            'H' ~ pn * 60,
+            'D' ~ pn * 60 * 24
+        ),
+        .after = 'TP'
+    ) |> 
+    select(-pn)
+tariff_df
+```
+
+-   Prices: EUR
+
+-   Duration: minutes
+
+-   Distance: kilometres
+
+Possible inaccuracies:
+
+-   For 1M: 0.23 per extra km after 99.99 cap (?)
+
+-   For 1M: 0.36 per extra km on subsequent days (?)
+
+# `TravelPrice` Function
+
+$$
+\mathrm{TravelPrice}(t, s) = \mathrm{GP} + \mathrm{TP} + \min(\mathrm{ExtraDuration}(t)\cdot \mathrm{ExtraMinPrice}, \mathrm{DailyCap}) + \mathrm{ExtraDist}(s)\cdot \mathrm{ExtraKmPrice}
+$$
+
+```{r}
+extra <- function(x, prepaid) {
+    pmax(0, x - prepaid)
+}
+stopifnot(extra(c(0, 23), 10) == c(0, 13))
+```
+
+-   $\mathbf{t}$, $\mathbf{s}$: vectors
+
+-   $\boldsymbol{\theta}$: tariff parameter vector
+
+```{r}
+travel_price <- function(t, s, θ, relative = FALSE) {
+    p <- θ$GP + θ$TP + 
+        pmin(extra(t, θ$PrepaidMins) * θ$ExtraMinsPrice, θ$DailyCap) +
+             extra(s, θ$PrepaidKm)   * θ$ExtraKmPrice
+    if (relative) {
+        p <- p / t / s
+    }
+    p
+}
+```
+
+Travel 90, 120 minutes and 70, 80 kilometres
+
+```{r}
+travel_price(c(90, 120), c(70, 80), tariff_df[2,])
+travel_price(c(90, 120), c(70, 80), tariff_df[2,], relative = TRUE)
+```
+
+# Distance x Duration
+
+Distance x Duration grid
+
+```{r}
+make_grid <- function(
+        min_duration = 1, max_duration,
+        min_distance = 1, max_distance, 
+        # km/m
+        min_speed = 1, max_speed
+    ) {
+    crossing(
+        duration = min_duration:max_duration,
+        distance = min_distance:max_distance
+    ) |> 
+    filter(between(distance / duration, min_speed, max_speed))
+}
+
+max_duration <- 60 * 12
+max_distance <- 1000
+min_speed <- 15 / 60
+max_speed <- 150 / 60
+
+td_grid <- make_grid(
+    max_duration = max_duration,
+    max_distance = max_distance,
+    min_speed = min_speed, max_speed = max_speed
+)
+    
+td_grid |> nrow()
+```
+
+Scalar fields: absolute price
+
+```{r}
+1:6 |> 
+    map(\(k) {
+        params <- tariff_df[k,]
+        td_grid |> 
+            filter(duration > params$PrepaidMins) |>
+            mutate(RTP = travel_price(duration, distance, params)) |> 
+            ggplot(aes(x = duration, y = distance, z = RTP)) +
+            geom_contour_filled(bins = 10) +
+            labs(title = params$Name)
+    })
+```
+
+relative price (/km/min)
+
+```{r}
+1:6 |> 
+    map(\(k) {
+        params <- tariff_df[k,]
+        td_grid |> 
+            filter(duration > params$PrepaidMins) |>
+            mutate(RTP = travel_price(duration, distance, params, relative = TRUE)) |> 
+            ggplot(aes(x = duration, y = distance, z = RTP)) +
+            geom_contour_filled(bins = 10) +
+            labs(title = params$Name)
+    })
+```
+
+# Optimisation Across Tariffs
+
+5 Hours, 200 kilometers
+
+```{r}
+1:6 |> 
+    map_dfr(\(k) {
+        params <- tariff_df[k,]
+        tibble(
+            Name = params$Name,
+            Price = travel_price(5 * 60, 200, params)
+            # `Price/Km/Min` = travel_price(5 * 60, 200, params, relative = TRUE)
+        )
+    })
+```
+
+```{r}
+min_tariff_df <- 
+    1:6 |> 
+    map(\(k) {
+        params <- tariff_df[k,]
+        td_grid |> 
+            # filter(duration > params$PrepaidMins) |>
+            mutate(
+                RTP = travel_price(duration, distance, params, relative = TRUE),
+                TariffName = params$Name
+            ) 
+    }) |> 
+    list_rbind() |> 
+    pivot_wider(names_from = 'TariffName', values_from = 'RTP') |> 
+    mutate(
+        min_idx = (pick(-(1:2)) |> as.matrix() |> apply(1, which.min)),
+        min_tariff_name = names(pick(-(1:2)))[min_idx]
+    )
+plot_min_tariff <- function(df, font_size = 9) {
+    df |> 
+        mutate(
+            duration = duration / 60,
+            min_tariff_name = relevel(as.factor(min_tariff_name), '1M')
+        ) |> 
+        ggplot(aes(x = duration, y = distance)) +
+        geom_hex(aes(fill = min_tariff_name), stat = 'identity') +
+        scale_fill_discrete(name = 'Tariff Name') +
+        labs(
+            x = 'Duration (hr)', y = 'Distance (km)', 
+            title = 'Most Favourable ShareNow Tariffs',
+            subtitle = 'BMW 1er (2020)',
+            caption = glue::glue('Min. speed = {min_speed * 60} km/h; max. speed = {max_speed * 60} km/h')
+        ) +
+        scale_x_continuous(breaks = 0:(max_duration/60)) +
+        scale_y_continuous(breaks = seq(0, max_distance, by = 100)) +
+        theme_bw(base_size = font_size)
+}
+min_tariff_df |> 
+    # group_by(duration) |>
+    # slice_sample(n = 100) |> 
+    # ungroup() |> 
+    plot_min_tariff()
+min_tariff_df |> 
+    filter(distance <= 200) |> 
+    plot_min_tariff()
+```
+
+```{r}
+pdf('./romas_card-all-a7.pdf', width = 4.1, height = 2.9)
+min_tariff_df |> plot_min_tariff(font_size = 7)
+dev.off()
+```
+
+```{r}
+pdf('./romas_card-all-a6.pdf', width = 5.8, height = 4.1)
+min_tariff_df |> plot_min_tariff(font_size = 9)
+dev.off()
+```
+
+```{r}
+pdf('./romas_card-closeup-a6.pdf', width = 5.8, height = 4.1)
+min_tariff_df |> filter(distance <= 200) |> plot_min_tariff(font_size = 9)
+dev.off()
+```
+
+```{r}
+pdf('./romas_card-closeup-a7.pdf', width = 4.1, height = 2.9)
+min_tariff_df |> filter(distance <= 200) |> plot_min_tariff(font_size = 7)
+dev.off()
+```
+
+# Fixed Duration
+
+5 Hours
+
+```{r}
+target_duration <- 5 * 60
+dist_df <- 
+    1:6 |> 
+    map_dfr(\(k) {
+        params <- tariff_df[k,]
+        tibble(
+            Name = params$Name,
+            Duration = target_duration,
+            Distance = (10 * 5):(100 * 5)
+        ) |> 
+            mutate(
+                Price = travel_price(Duration, Distance, params),
+                `Price/Km/Min` = travel_price(Duration, Distance, params, relative = TRUE)
+            )
+    })
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = Distance, y = `Price`, color = Name)) +
+    labs(title = glue::glue('Target duration: {target_duration / 60} hours'))
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = Distance, y = `Price/Km/Min`, color = Name)) +
+    labs(title = glue::glue('Target duration: {target_duration / 60} hours'))
+```
+
+# Fixed Distance
+
+200 Kilometers
+
+```{r}
+target_distance <- 200
+dist_df <- 
+    1:6 |> 
+    map_dfr(\(k) {
+        params <- tariff_df[k,]
+        tibble(
+            Name = params$Name,
+            Distance = target_distance,
+            Duration = (2*60):(6*60)
+        ) |> 
+            mutate(
+                Price = travel_price(Duration, Distance, params),
+                `Price/Km/Min` = travel_price(Duration, Distance, params, relative = TRUE),
+                DurationH = Duration / 60
+            )
+    })
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = DurationH, y = `Price`, color = Name)) +
+    labs(title = glue::glue('Target distance: {target_distance} km'))
+dist_df |> 
+    ggplot() +
+    geom_line(aes(x = DurationH, y = `Price/Km/Min`, color = Name)) +
+    labs(title = glue::glue('Target distance: {target_distance} km'))
+```
